@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="shortcut icon" type="image/x-icon" href="./img/mx.jpg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MX-GΔMΞCØDΞR Links</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #1f1c2c, #928dab);
+      font-family: 'Roboto', sans-serif;
+      color: #fff;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+      animation: moveText 3s linear infinite;
+    }
+
+    @keyframes moveText {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
+
+    .btn {
+      --color: #fff;
+      --color2: #1f1c2c;
+      width: 200px;
+      padding: 0.8em 1.75em;
+      background-color: transparent;
+      border-radius: 6px;
+      border: 2px solid var(--color);
+      transition: all 0.3s ease-in-out;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 16px;
+      text-transform: uppercase;
+      color: var(--color);
+      margin: 10px 0;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--color);
+      z-index: -1;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease-in-out;
+    }
+
+    .btn:hover::after {
+      transform: scaleX(1);
+    }
+
+    .btn:hover {
+      color: var(--color2);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    @media screen and (max-width: 600px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      .btn {
+        width: 160px;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>MX-GΔMΞCØDΞR</h1>
+  <button onclick="window.open('/mx')" class="btn">Pair Code</button>
+  <button onclick="window.open('https://github.com/themxgamecoder')" class="btn">GitHub</button>
+  <button onclick="window.open('https://youtube.com/@mxgamecoder')" class="btn">YouTube</button>
+  <button onclick="window.open('https://t.me/mxgamecoderr')" class="btn">Telegram</button>
+  <button onclick="window.open('https://www.instagram.com/themxgamecoder')" class="btn">Instagram</button>
+
+</body>
+</html>
