@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="shortcut icon" type="image/x-icon" href="./img/mx.jpg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MX-GΔMΞCØDΞR Links</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Share Tech Mono', monospace;
+      color: #39ff14;
+      background: url('https://i.ibb.co/tw4hKc9q/mx.png') no-repeat center center fixed;
+      background-size: cover;
+      transition: background 0.5s ease;
+    }
+
+    body.black-theme {
+      background: #000;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      letter-spacing: 2px;
+      margin-bottom: 40px;
+      color: #39ff14;
+      text-shadow: 0 0 8px #39ff14, 0 0 20px #1f1f1f;
+      animation: flicker 2.5s infinite alternate;
+    }
+
+    @keyframes flicker {
+      0% { opacity: 1; text-shadow: 0 0 5px #39ff14; }
+      50% { opacity: 0.85; text-shadow: 0 0 15px #39ff14; }
+      100% { opacity: 1; text-shadow: 0 0 8px #39ff14; }
+    }
+
+    .btn {
+      margin: 10px;
+      padding: 15px 30px;
+      font-size: 1rem;
+      color: #39ff14;
+      background: transparent;
+      border: 2px solid #39ff14;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s ease;
+      position: relative;
+      z-index: 1;
+      overflow: hidden;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 100%;
+      background: #39ff14;
+      z-index: -1;
+      transition: 0.3s ease;
+    }
+
+    .btn:hover {
+      color: #000;
+    }
+
+    .btn:hover::before {
+      width: 100%;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    @media screen and (max-width: 600px) {
+      h1 {
+        font-size: 2rem;
+        text-align: center;
+      }
+
+      .btn {
+        width: 80%;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body onclick="toggleTheme()">
+
+  <h1>MX-GΔMΞCØDΞR</h1>
+  <button onclick="window.open('/mx')" class="btn">Pair Code</button>
+  <button onclick="window.open('https://t.me/mxgamecoderr')" class="btn">GitHub</button>
+  <button onclick="window.open('https://youtube.com/@mxgamecoder')" class="btn">YouTube</button>
+  <button onclick="window.open('https://t.me/mxgamecoderr')" class="btn">Telegram</button>
+  <button onclick="window.open('https://www.instagram.com/mxgamecoderr')" class="btn">Instagram</button>
+
+  <script>
+    function toggleTheme() {
+      document.body.classList.toggle('black-theme');
+    }
+  </script>
+
+</body>
+</html>
