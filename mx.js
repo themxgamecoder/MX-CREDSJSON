@@ -1,5 +1,6 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const pino = require("pino");
 const router = express.Router();
 
@@ -10,7 +11,8 @@ const {
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
-function removeFile(FilePath){
+// 🔧 Remove a file or folder safely
+function removeFile(FilePath) {
     if (!fs.existsSync(FilePath)) return false;
     fs.rmSync(FilePath, { recursive: true, force: true });
 }
@@ -18,6 +20,12 @@ function removeFile(FilePath){
 router.get('/', async (req, res) => {
     const num = req.query.number?.replace(/[^0-9]/g, '');
     if (!num || num.length < 10) return res.status(400).send({ error: "Invalid number" });
+
+    // ✅ Ensure ./session folder exists
+    const sessionDir = path.join(__dirname, 'session');
+    if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+    }
 
     async function startPairing() {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`);
@@ -30,20 +38,20 @@ router.get('/', async (req, res) => {
                 },
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }),
-                browser: [ "Ubuntu", "Chrome", "MX-2.0" ]
+                browser: ["Ubuntu", "Chrome", "MX-2.0"]
             });
 
-            // 🔐 Listen for session saving
+            // 🔐 Save credentials on update
             sock.ev.on('creds.update', saveCreds);
 
-            // 📡 Connection monitoring
+            // 📡 Handle connection updates
             sock.ev.on("connection.update", async ({ connection }) => {
                 if (connection === "open") {
                     console.log("✅ Paired successfully. Saving session...");
 
-                    await saveCreds(); // 🔒 Save creds immediately
+                    await saveCreds();
 
-                    // Send creds file to user (optional)
+                    // 📁 Send creds.json to the paired number
                     const sessionFile = './session/creds.json';
                     if (fs.existsSync(sessionFile)) {
                         const sessionData = fs.readFileSync(sessionFile);
@@ -58,14 +66,14 @@ router.get('/', async (req, res) => {
                         });
                     }
 
-                    await delay(5000); // Let it sync completely
-                    process.exit(0); // Clean exit
+                    await delay(5000);
+                    process.exit(0); // ✅ Exit cleanly after pairing
                 }
             });
 
-            // 📲 Request Pairing Code
+            // 📲 Request pairing code
             if (!sock.authState.creds.registered) {
-                await delay(1500); // slight delay for stability
+                await delay(1500);
                 const code = await sock.requestPairingCode(num);
                 console.log(`🔑 Pairing Code for ${num}: ${code}`);
                 if (!res.headersSent) {
@@ -82,7 +90,7 @@ router.get('/', async (req, res) => {
     return await startPairing();
 });
 
-// 🛠 Ignore common harmless errors
+// 🛠 Ignore known harmless errors
 process.on('uncaughtException', function (err) {
     const e = String(err);
     const ignored = [
