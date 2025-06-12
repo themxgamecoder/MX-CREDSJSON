@@ -1,7 +1,3 @@
-err);
-});
-
-module.exports = router;
 const express = require('express');
 const fs = require('fs');
 let router = express.Router()
@@ -95,3 +91,4 @@ console.log('Caught exception: ', err)
 })
 
 module.exports = router
+					
