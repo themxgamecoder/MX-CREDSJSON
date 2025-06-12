@@ -1,9 +1,8 @@
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
+let router = express.Router()
 const pino = require("pino");
-const router = express.Router();
-
+const port = process.env.PORT || 10000;
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -11,94 +10,84 @@ const {
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
-// 🔧 Remove a file or folder safely
-function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
-}
-
+function removeFile(FilePath){
+    if(!fs.existsSync(FilePath)) return false;
+    fs.rmSync(FilePath, { recursive: true, force: true })
+ };
 router.get('/', async (req, res) => {
-    const num = req.query.number?.replace(/[^0-9]/g, '');
-    if (!num || num.length < 10) return res.status(400).send({ error: "Invalid number" });
-
-    // ✅ Ensure ./session folder exists
-    const sessionDir = path.join(__dirname, 'session');
-    if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
-    }
-
-    async function startPairing() {
-        const { state, saveCreds } = await useMultiFileAuthState(`./session`);
-
-        try {
-            const sock = makeWASocket({
+    let num = req.query.number;
+        async function XeonPair() {
+        const {
+            state,
+            saveCreds
+        } = await useMultiFileAuthState(`./session`)
+     try {
+            let XeonBotInc = makeWASocket({
                 auth: {
                     creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({level: "fatal"}).child({level: "fatal"})),
                 },
                 printQRInTerminal: false,
-                logger: pino({ level: "fatal" }),
-                browser: ["Ubuntu", "Chrome", "MX-2.0"]
-            });
-
-            // 🔐 Save credentials on update
-            sock.ev.on('creds.update', saveCreds);
-
-            // 📡 Handle connection updates
-            sock.ev.on("connection.update", async ({ connection }) => {
-                if (connection === "open") {
-                    console.log("✅ Paired successfully. Saving session...");
-
-                    await saveCreds();
-
-                    // 📁 Send creds.json to the paired number
-                    const sessionFile = './session/creds.json';
-                    if (fs.existsSync(sessionFile)) {
-                        const sessionData = fs.readFileSync(sessionFile);
-                        await sock.sendMessage(sock.user.id, {
-                            document: sessionData,
-                            mimetype: "application/json",
-                            fileName: "creds.json"
-                        });
-
-                        await sock.sendMessage(sock.user.id, {
-                            text: `✅ *Session saved.*\n\n🛑 *Do not share this file.*\nSubscribe 👉 youtube.com/@mxgamecoder`
-                        });
-                    }
-
-                    await delay(5000);
-                    process.exit(0); // ✅ Exit cleanly after pairing
-                }
-            });
-
-            // 📲 Request pairing code
-            if (!sock.authState.creds.registered) {
+                logger: pino({level: "fatal"}).child({level: "fatal"}),
+                browser: [ "Ubuntu", "Chrome", "MX-2.0" ],
+             });
+             if(!XeonBotInc.authState.creds.registered) {
                 await delay(1500);
-                const code = await sock.requestPairingCode(num);
-                console.log(`🔑 Pairing Code for ${num}: ${code}`);
-                if (!res.headersSent) {
-                    res.send({ code });
+                        num = num.replace(/[^0-9]/g,'');
+                            const code = await XeonBotInc.requestPairingCode(num)
+                 if(!res.headersSent){
+                 await res.send({code});
+                     }
+                 }
+            XeonBotInc.ev.on('creds.update', saveCreds)
+            XeonBotInc.ev.on("connection.update", async (s) => {
+                const {
+                    connection,
+                    lastDisconnect
+                } = s;
+                if (connection == "open") {
+                await delay(10000);
+                    const sessionXeon = fs.readFileSync('./session/creds.json');
+                    const audioxeon = fs.readFileSync('./MX-2.0.mp3');
+                    XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
+				const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, { document: sessionXeon, mimetype: `application/json`, fileName: `creds.json` });
+				XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                    audio: audioxeon,
+                    mimetype: 'audio/mp4',
+                    ptt: true
+                }, {
+                    quoted: xeonses
+                });
+				await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `*_🛑Do not share this file with anybody_*\n\n© *_Subscribe_* www.youtube.com/@mxgamecoder *_on Youtube_*` }, {quoted: xeonses});
+        await delay(100);
+        return await removeFile('./session');
+        process.exit(0)
+            } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
+                    await delay(10000);
+                    XeonPair();
                 }
-            }
+            });
         } catch (err) {
-            console.error("❌ Pairing Error:", err);
-            removeFile('./session');
-            if (!res.headersSent) res.status(500).send({ code: "Service Unavailable" });
+            console.log("service restated");
+            await removeFile('./session');
+         if(!res.headersSent){
+            await res.send({code:"Service Unavailable"});
+         }
         }
     }
-
-    return await startPairing();
+    return await XeonPair()
 });
 
-// 🛠 Ignore known harmless errors
 process.on('uncaughtException', function (err) {
-    const e = String(err);
-    const ignored = [
-        "conflict", "Socket connection timeout", "not-authorized",
-        "rate-overlimit", "Connection Closed", "Timed Out", "Value not found"
-    ];
-    if (ignored.some(i => e.includes(i))) return;
-    console.error('❗ Uncaught Exception:', err);
-});
+let e = String(err)
+if (e.includes("conflict")) return
+if (e.includes("Socket connection timeout")) return
+if (e.includes("not-authorized")) return
+if (e.includes("rate-overlimit")) return
+if (e.includes("Connection Closed")) return
+if (e.includes("Timed Out")) return
+if (e.includes("Value not found")) return
+console.log('Caught exception: ', err)
+})
 
-module.exports = router;
+module.exports = router
