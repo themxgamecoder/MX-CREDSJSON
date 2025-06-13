@@ -2,9 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require("path");
 const crypto = require("crypto");
-let router = express.Router();
 const pino = require("pino");
-const port = process.env.PORT || 10000;
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -12,87 +10,75 @@ const {
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
-// Store for temp creds with auto-expiry
-const tempCredsStore = {};
+const router = express.Router();
+const tempCredsStore = {}; // 🧠 In-memory temp store
 
 // Generate ID like mekaai_3d9e2a
 function generateId() {
     return "mekaai_" + crypto.randomBytes(3).toString("hex");
 }
 
-// Delete file after 5 mins if unused
+// Delete file after 5 mins
 function scheduleDeletion(id, filepath) {
     setTimeout(() => {
-        if (fs.existsSync(filepath)) {
-            fs.unlinkSync(filepath);
-        }
+        if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
         delete tempCredsStore[id];
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
 }
 
 function removeFile(FilePath){
-    if(!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
-};
+    if(fs.existsSync(FilePath)) {
+        fs.rmSync(FilePath, { recursive: true, force: true });
+    }
+}
 
+// 🔐 Handle pairing request
 router.get('/', async (req, res) => {
     let num = req.query.number;
+    if (!num) return res.status(400).send({ error: "Missing number" });
+
     async function XeonPair() {
-        const {
-            state,
-            saveCreds
-        } = await useMultiFileAuthState(`./session`);
+        const { state, saveCreds } = await useMultiFileAuthState(`./session`);
         try {
-            let XeonBotInc = makeWASocket({
+            const XeonBotInc = makeWASocket({
                 auth: {
                     creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({level: "fatal"}).child({level: "fatal"})),
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
                 },
                 printQRInTerminal: false,
-                logger: pino({level: "fatal"}).child({level: "fatal"}),
-                browser: [ "Ubuntu", "Chrome", "MX-2.0" ],
+                logger: pino({ level: "fatal" }),
+                browser: ["Ubuntu", "Chrome", "MX-2.0"]
             });
 
-            if(!XeonBotInc.authState.creds.registered) {
+            if (!XeonBotInc.authState.creds.registered) {
                 await delay(1500);
-                num = num.replace(/[^0-9]/g,'');
+                num = num.replace(/\D/g, '');
                 const code = await XeonBotInc.requestPairingCode(num);
-                if(!res.headersSent){
-                    await res.send({code});
-                }
+                if (!res.headersSent) return res.send({ code });
             }
 
             XeonBotInc.ev.on('creds.update', saveCreds);
-            XeonBotInc.ev.on("connection.update", async (s) => {
-                const {
-                    connection,
-                    lastDisconnect
-                } = s;
-
-                if (connection == "open") {
+            XeonBotInc.ev.on("connection.update", async ({ connection, lastDisconnect }) => {
+                if (connection === "open") {
                     await delay(10000);
-
                     const sessionXeon = fs.readFileSync('./session/creds.json');
                     const audioxeon = fs.readFileSync('./MX-2.0.mp3');
+
                     XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
 
-                    // 🔥 Create unique temp file
                     const id = generateId();
                     const tempDir = `./temp_creds`;
                     const credsPath = `${tempDir}/${id}.json`;
 
-                    // ✅ Ensure folder exists (works even on Render)
                     fs.mkdirSync(tempDir, { recursive: true });
                     fs.writeFileSync(credsPath, sessionXeon);
                     tempCredsStore[id] = credsPath;
-                    scheduleDeletion(id, credsPath); // delete after 5 min
+                    scheduleDeletion(id, credsPath);
 
-                    // 📩 Send ID to user (not the file)
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                        text: `*_🛑Do not share this ID with anyone_*\n\nYour file ID: *${id}*\n\nUse this in your code to download your creds.json\n\n© *_Subscribe_* www.youtube.com/@mxgamecoder *_on Youtube_*`
+                        text: `*_🛑 Do not share this ID with anyone!_*\n\nYour file ID: *${id}*\nUse this in your code to download your creds.json\n\n© *_Subscribe_* www.youtube.com/@mxgamecoder`
                     });
 
-                    // 🔊 Send audio
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, {
                         audio: audioxeon,
                         mimetype: 'audio/mp4',
@@ -100,25 +86,24 @@ router.get('/', async (req, res) => {
                     });
 
                     await delay(100);
-                    await removeFile('./session');
+                    removeFile('./session');
                     process.exit(0);
-                } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
+                } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
                     await delay(10000);
                     XeonPair();
                 }
             });
         } catch (err) {
-            console.log("service restated");
-            await removeFile('./session');
-            if(!res.headersSent){
-                await res.send({code:"Service Unavailable"});
-            }
+            console.log("Service restarted");
+            removeFile('./session');
+            if (!res.headersSent) res.send({ code: "Service Unavailable" });
         }
     }
+
     return await XeonPair();
 });
 
-// ✅ New Route to GET the creds.json by ID
+// ✅ Route: GET creds.json by ID
 router.get('/creds', (req, res) => {
     const id = req.query.id;
     if (!id || !tempCredsStore[id]) {
@@ -134,17 +119,15 @@ router.get('/creds', (req, res) => {
     });
 });
 
-// 👀 Optional: Error safety
+// 🔧 Optional: catch errors
 process.on('uncaughtException', function (err) {
     let e = String(err);
-    if (e.includes("conflict")) return;
-    if (e.includes("Socket connection timeout")) return;
-    if (e.includes("not-authorized")) return;
-    if (e.includes("rate-overlimit")) return;
-    if (e.includes("Connection Closed")) return;
-    if (e.includes("Timed Out")) return;
-    if (e.includes("Value not found")) return;
-    console.log('Caught exception: ', err);
+    const ignores = [
+        "conflict", "Socket connection timeout", "not-authorized", "rate-overlimit",
+        "Connection Closed", "Timed Out", "Value not found"
+    ];
+    if (ignores.some(ig => e.includes(ig))) return;
+    console.log('Caught exception:', err);
 });
 
 module.exports = router;
