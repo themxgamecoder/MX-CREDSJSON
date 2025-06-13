@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 let router = express.Router();
 const pino = require("pino");
-const port = process.env.PORT || 10000;
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -38,7 +37,7 @@ router.get('/', async (req, res) => {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`);
 
         try {
-            let XeonBotInc = makeWASocket({
+            const XeonBotInc = makeWASocket({
                 auth: {
                     creds: state.creds,
                     keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
@@ -62,39 +61,48 @@ router.get('/', async (req, res) => {
                     const { connection, lastDisconnect } = s;
 
                     if (connection === "open") {
+                        console.log("✅ WhatsApp paired successfully:", XeonBotInc.user?.id);
                         await delay(7000);
-                        const sessionXeon = fs.readFileSync('./session/creds.json');
-                        fs.writeFileSync(`./creds/${id}.json`, sessionXeon);
+
+                        // Save valid JSON
+                        const sessionData = JSON.parse(fs.readFileSync('./session/creds.json', 'utf-8'));
+                        fs.writeFileSync(`./creds/${id}.json`, JSON.stringify(sessionData, null, 2));
 
                         const audioxeon = fs.readFileSync('./MX-2.0.mp3');
-                        await XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
 
-                        const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                            document: sessionXeon,
-                            mimetype: `application/json`,
-                            fileName: `creds.json`
-                        });
+                        try {
+                            await XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
 
-                        await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                            text: `✅ *Your Pairing Was Successful!*\n\n🆔 Your File ID: *${id}*\n\n📥 Use this ID in the Replit Terminal to auto-download your creds.json.\n\n*_Do not share this ID with anyone._*`,
-                            quoted: xeonses
-                        });
+                            const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                                document: Buffer.from(JSON.stringify(sessionData)),
+                                mimetype: 'application/json',
+                                fileName: `creds.json`,
+                            });
 
-                        await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                            audio: audioxeon,
-                            mimetype: 'audio/mp4',
-                            ptt: true
-                        }, {
-                            quoted: xeonses
-                        });
+                            await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                                text: `✅ *Your Pairing Was Successful!*\n\n🆔 Your File ID: *${id}*\n\n📥 Use this ID in Replit to auto-download your creds.json.\n\n🛑 _Don't share this ID with anyone!_`,
+                                quoted: xeonses,
+                            });
 
-                        await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                            text: `*_🛑Do not share this file with anybody_*\n\n© *_Subscribe_* www.youtube.com/@mxgamecoder *_on Youtube_*`
-                        }, {
-                            quoted: xeonses
-                        });
+                            await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                                audio: audioxeon,
+                                mimetype: 'audio/mp4',
+                                ptt: true,
+                            }, {
+                                quoted: xeonses
+                            });
 
-                        await delay(100);
+                            await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                                text: `*_🛑Do not share this file with anybody_*\n\n© *_Subscribe_* www.youtube.com/@mxgamecoder *_on YouTube_*`,
+                            }, {
+                                quoted: xeonses
+                            });
+
+                            await delay(3000);
+                        } catch (err) {
+                            console.error("❌ Error sending messages:", err.message);
+                        }
+
                         await removeFile('./session');
                         process.exit(0);
                     }
