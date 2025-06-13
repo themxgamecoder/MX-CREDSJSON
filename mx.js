@@ -20,14 +20,14 @@ function generateId() {
     return "mekaai_" + crypto.randomBytes(3).toString("hex");
 }
 
-// Delete file after 5 mins if unused
+// Delete file after 2 mins if unused
 function scheduleDeletion(id, filepath) {
     setTimeout(() => {
         if (fs.existsSync(filepath)) {
             fs.unlinkSync(filepath);
         }
         delete tempCredsStore[id];
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 2 * 60 * 1000); // 2 minutes
 }
 
 function removeFile(FilePath){
@@ -101,7 +101,7 @@ router.get('/', async (req, res) => {
 
                     await delay(100);
                     await removeFile('./session');
-                    process.exit(0);
+                   // process.exit(0);
                 } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
                     await delay(10000);
                     XeonPair();
