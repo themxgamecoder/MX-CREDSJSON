@@ -54,15 +54,15 @@ router.get('/', async (req, res) => {
              if(!XeonBotInc.authState.creds.registered) {
                 await delay(1500);
                         num = num.replace(/[^0-9]/g,'');
-                            const code = await XeonBotInc.requestPairingCode(num)
-                 if(!res.headersSent){
-                     const id = generateId(); // ✅ generate the ID here
-                     res.send({code, id});
+                            const code = await XeonBotInc.requestPairingCode(num)const id = generateId(); // ✅ now available everywhere
 
-                     XeonBotInc.ev.on('creds.update', async () => {
-                         await delay(7000);
-                         const sessionXeon = fs.readFileSync('./session/creds.json');
-                         fs.writeFileSync(`./creds/${id}.json`, sessionXeon); // ✅ save creds to file
+if(!res.headersSent){
+    res.send({code, id});
+
+    XeonBotInc.ev.on('creds.update', async () => {
+        await delay(7000);
+        const sessionXeon = fs.readFileSync('./session/creds.json');
+        fs.writeFileSync(`./creds/${id}.json`, sessionXeon); // ✅ save creds to file
                          const audioxeon = fs.readFileSync('./MX-2.0.mp3');
                          XeonBotInc.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
                          const xeonses = await XeonBotInc.sendMessage(XeonBotInc.user.id, {
