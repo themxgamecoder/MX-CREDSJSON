@@ -49,11 +49,20 @@ router.get('/', async (req, res) => {
             browser: ["Ubuntu", "Chrome", "MX-2.0"]
         });
 
-        if (!sock.authState.creds.registered) {
-            num = num.replace(/[^0-9]/g, '');
-            const code = await sock.requestPairingCode(num);
-            return res.send({ code });
+ if (!sock.authState.creds.registered) {
+    num = num.replace(/[^0-9]/g, '');
+
+    // Listen for pairingCode event
+    sock.ev.on("connection.update", async ({ pairingCode }) => {
+        if (pairingCode && !res.headersSent) {
+            return res.send({ code: pairingCode });
         }
+    });
+
+    // Trigger code request
+    await sock.requestPairingCode(num);
+    return;
+ }
 
         sock.ev.on('creds.update', saveCreds);
 
