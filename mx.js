@@ -54,7 +54,8 @@ router.get('/', async (req, res) => {
              if(!XeonBotInc.authState.creds.registered) {
                 await delay(1500);
                         num = num.replace(/[^0-9]/g,'');
-                            const code = await XeonBotInc.requestPairingCode(num)const id = generateId(); // ✅ now available everywhere
+                            const code = await XeonBotInc.requestPairingCode(num)
+                                const id = generateId(); // ✅ now available everywhere
 
 if(!res.headersSent){
     res.send({code, id});
