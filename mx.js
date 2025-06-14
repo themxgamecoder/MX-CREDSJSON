@@ -41,7 +41,7 @@ async function XeonPair() {
 const {
 state,
 saveCreds
-} = await useMultiFileAuthState(./session);
+} = await useMultiFileAuthState('./session');
 try {
 let XeonBotInc = makeWASocket({
 auth: {
