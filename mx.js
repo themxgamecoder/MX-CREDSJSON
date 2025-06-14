@@ -5,121 +5,143 @@ const crypto = require("crypto");
 let router = express.Router();
 const pino = require("pino");
 const port = process.env.PORT || 10000;
+
 const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    delay,
-    makeCacheableSignalKeyStore
+  default: makeWASocket,
+  useMultiFileAuthState,
+  delay,
+  makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
-// Temp ID store (auto-expires)
-const tempSessionStore = {};
+// Store for temp sessions
+const tempCredsStore = {};
 
-// Generate ID like mekaai_3d9e2a
 function generateId() {
-    return "mekaai_" + crypto.randomBytes(3).toString("hex");
+  return "mekaai_" + crypto.randomBytes(3).toString("hex");
 }
 
-// Auto delete after 1 hour
-function scheduleSessionCleanup(id, dir) {
-    setTimeout(() => {
-        if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-        delete tempSessionStore[id];
-    }, 60 * 60 * 1000); // 1 hour
-}
-
-// Remove folder
-function removeFolder(folderPath) {
-    if (fs.existsSync(folderPath)) {
-        fs.rmSync(folderPath, { recursive: true, force: true });
+function scheduleDeletion(id, dirPath) {
+  setTimeout(() => {
+    if (fs.existsSync(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
     }
+    delete tempCredsStore[id];
+  }, 60 * 60 * 1000); // 1 hour
 }
 
-// Start pairing process
+function removeFile(FilePath){
+  if(!fs.existsSync(FilePath)) return false;
+  fs.rmSync(FilePath, { recursive: true, force: true });
+};
+
 router.get('/', async (req, res) => {
-    const num = req.query.number;
-    if (!num) return res.status(400).send({ error: "Phone number required" });
-
-    const id = generateId();
-    const tempDir = `./temp_sessions/${id}`;
-    fs.mkdirSync(tempDir, { recursive: true });
-
-    const { state, saveCreds } = await useMultiFileAuthState(tempDir);
+  let num = req.query.number;
+  async function XeonPair() {
+    const { state, saveCreds } = await useMultiFileAuthState('./session');
     try {
-        const sock = makeWASocket({
-            auth: {
-                creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" }).child({ level: "silent" })),
-            },
-            printQRInTerminal: false,
-            logger: pino({ level: "silent" }).child({ level: "silent" }),
-            browser: ["Ubuntu", "Chrome", "MX-2.0"],
-        });
+      let XeonBotInc = makeWASocket({
+        auth: {
+          creds: state.creds,
+          keys: makeCacheableSignalKeyStore(state.keys, pino({level: "fatal"}))
+        },
+        printQRInTerminal: false,
+        logger: pino({level: "fatal"}),
+        browser: ["MekaAI", "Chrome", "MX-2.0"]
+      });
 
-        if (!sock.authState.creds.registered) {
-            const cleanNum = num.replace(/[^0-9]/g, '');
-            const code = await sock.requestPairingCode(cleanNum);
-            if (!res.headersSent) res.send({ code, id }); // send both code and ID
+      if (!XeonBotInc.authState.creds.registered) {
+        await delay(1500);
+        num = num.replace(/[^0-9]/g,'');
+        const code = await XeonBotInc.requestPairingCode(num);
+        if (!res.headersSent) {
+          await res.send({ code });
         }
+      }
 
-        sock.ev.on('creds.update', saveCreds);
+      XeonBotInc.ev.on('creds.update', saveCreds);
+      XeonBotInc.ev.on("connection.update", async (s) => {
+        const { connection, lastDisconnect } = s;
+        if (connection == "open") {
+          await delay(10000);
 
-        sock.ev.on("connection.update", async ({ connection, lastDisconnect }) => {
-            if (connection === "open") {
-                // Success: store session in temp store
-                tempSessionStore[id] = tempDir;
-                scheduleSessionCleanup(id, tempDir);
+          const id = generateId();
+          const tempDir = `./temp_creds/${id}`;
+          fs.mkdirSync(tempDir, { recursive: true });
 
-                await sock.sendMessage(sock.user.id, {
-                    text: `✅ Your bot is connected!\n\nYour ID: *${id}*\nUse this ID for bot authentication.\n\n⚠️ Auto expires in 1 hour.`
-                });
+          fs.readdirSync('./session').forEach(file => {
+            fs.copyFileSync(`./session/${file}`, `${tempDir}/${file}`);
+          });
 
-                // Optional: Send audio or join group
-                try {
-                    const audio = fs.readFileSync('./MX-2.0.mp3');
-                    await sock.sendMessage(sock.user.id, {
-                        audio,
-                        mimetype: 'audio/mp4',
-                        ptt: true
-                    });
-                    await sock.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
-                } catch {}
+          tempCredsStore[id] = tempDir;
+          scheduleDeletion(id, tempDir);
 
-                await delay(1000);
-            } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                await delay(10000);
-                removeFolder(tempDir);
-            }
-        });
+          await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+            text: `*_🛑Do not share this ID with anyone_*
+
+Your connection ID: *${id}*
+
+Use this ID to connect your bot to WhatsApp.`
+          });
+
+          await delay(100);
+          await removeFile('./session');
+        } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
+          await delay(10000);
+          XeonPair();
+        }
+      });
     } catch (err) {
-        console.log("Error starting bot:", err);
-        removeFolder(tempDir);
-        if (!res.headersSent) res.status(500).send({ error: "Bot failed to start." });
+      console.log("service restarted");
+      await removeFile('./session');
+      if (!res.headersSent) {
+        await res.send({ code: "Service Unavailable" });
+      }
     }
+  }
+  return await XeonPair();
 });
 
-// Endpoint to verify ID exists (optional for frontend)
-router.get('/verify', (req, res) => {
-    const id = req.query.id;
-    if (!id || !tempSessionStore[id]) {
-        return res.status(404).send({ error: "Invalid or expired ID" });
+router.get('/connect', async (req, res) => {
+  const id = req.query.id;
+  const sessionPath = tempCredsStore[id];
+  if (!id || !sessionPath || !fs.existsSync(sessionPath)) {
+    return res.status(404).send({ error: "Invalid or expired session ID" });
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+  const XeonBotInc = makeWASocket({
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }))
+    },
+    printQRInTerminal: false,
+    logger: pino({ level: "fatal" }),
+    browser: ["MekaAI", "Chrome", "MX-2.0"]
+  });
+
+  XeonBotInc.ev.on('creds.update', saveCreds);
+  XeonBotInc.ev.on("connection.update", async (s) => {
+    const { connection } = s;
+    if (connection == "open") {
+      await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+        text: `✅ Connected via ID: *${id}*\n\nBot is live on WhatsApp!`
+      });
     }
-    res.send({ status: "valid", id });
+  });
+
+  res.send({ success: true, message: "Connecting bot via ID..." });
 });
 
-// Fallback for crash logs
 process.on('uncaughtException', function (err) {
-    let e = String(err);
-    if ([
-        "conflict",
-        "Socket connection timeout",
-        "not-authorized",
-        "rate-overlimit",
-        "Connection Closed",
-        "Timed Out",
-        "Value not found"
-    ].some(v => e.includes(v))) return;
-    console.log('Caught exception:', err);
+  let e = String(err);
+  if (e.includes("conflict")) return;
+  if (e.includes("Socket connection timeout")) return;
+  if (e.includes("not-authorized")) return;
+  if (e.includes("rate-overlimit")) return;
+  if (e.includes("Connection Closed")) return;
+  if (e.includes("Timed Out")) return;
+  if (e.includes("Value not found")) return;
+  console.log('Caught exception: ', err);
 });
 
 module.exports = router;
