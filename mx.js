@@ -2,119 +2,124 @@ const express = require('express');
 const fs = require('fs');
 const path = require("path");
 const crypto = require("crypto");
+let router = express.Router();
 const pino = require("pino");
+const port = process.env.PORT || 10000;
 const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  delay,
-  makeCacheableSignalKeyStore,
+    default: makeWASocket,
+    useMultiFileAuthState,
+    delay,
+    makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
-const router = express.Router();
-const tempCredsStore = {}; // Maps ID -> filepath
-const TEMP_DIR = "./temp_creds";
-const SESSION_DIR = "./session";
+// Temp ID store (auto-expires)
+const tempSessionStore = {};
 
+// Generate ID like mekaai_3d9e2a
 function generateId() {
-  return "mekaai_" + crypto.randomBytes(3).toString("hex");
+    return "mekaai_" + crypto.randomBytes(3).toString("hex");
 }
 
-function scheduleDeletion(id, filepath, timeoutMs = 60 * 60 * 1000) { // 1 hour
-  setTimeout(() => {
-    if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
-    delete tempCredsStore[id];
-  }, timeoutMs);
+// Auto delete after 1 hour
+function scheduleSessionCleanup(id, dir) {
+    setTimeout(() => {
+        if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+        delete tempSessionStore[id];
+    }, 60 * 60 * 1000); // 1 hour
 }
 
-function removeFile(dir) {
-  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+// Remove folder
+function removeFolder(folderPath) {
+    if (fs.existsSync(folderPath)) {
+        fs.rmSync(folderPath, { recursive: true, force: true });
+    }
 }
 
+// Start pairing process
 router.get('/', async (req, res) => {
-  let num = req.query.number;
+    const num = req.query.number;
+    if (!num) return res.status(400).send({ error: "Phone number required" });
 
-  async function XeonPair() {
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+    const id = generateId();
+    const tempDir = `./temp_sessions/${id}`;
+    fs.mkdirSync(tempDir, { recursive: true });
 
+    const { state, saveCreds } = await useMultiFileAuthState(tempDir);
     try {
-      let XeonBotInc = makeWASocket({
-        auth: {
-          creds: state.creds,
-          keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
-        },
-        printQRInTerminal: false,
-        logger: pino({ level: "fatal" }),
-        browser: ["Ubuntu", "Chrome", "MX-2.0"],
-      });
+        const sock = makeWASocket({
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" }).child({ level: "silent" })),
+            },
+            printQRInTerminal: false,
+            logger: pino({ level: "silent" }).child({ level: "silent" }),
+            browser: ["Ubuntu", "Chrome", "MX-2.0"],
+        });
 
-      if (!XeonBotInc.authState.creds.registered) {
-        await delay(1500);
-        num = num.replace(/[^0-9]/g, '');
-        const code = await XeonBotInc.requestPairingCode(num);
-        if (!res.headersSent) return res.send({ code });
-      }
-
-      XeonBotInc.ev.on('creds.update', saveCreds);
-
-      XeonBotInc.ev.on("connection.update", async ({ connection }) => {
-        if (connection === "open") {
-          await delay(3000);
-
-          const sessionData = fs.readFileSync(`${SESSION_DIR}/creds.json`);
-          const audioMsg = fs.readFileSync("./MX-2.0.mp3");
-
-          const id = generateId();
-          const credsPath = `${TEMP_DIR}/${id}.json`;
-          fs.mkdirSync(TEMP_DIR, { recursive: true });
-          fs.writeFileSync(credsPath, sessionData);
-
-          tempCredsStore[id] = credsPath;
-          scheduleDeletion(id, credsPath);
-
-          await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-            text: `*_🛑Do not share this ID with anyone_*
-
-Your session ID: *${id}*
-Use this ID to login without creds.json!`
-          });
-
-          await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-            audio: audioMsg,
-            mimetype: 'audio/mp4',
-            ptt: true
-          });
-
-          await delay(100);
-          await removeFile(SESSION_DIR);
+        if (!sock.authState.creds.registered) {
+            const cleanNum = num.replace(/[^0-9]/g, '');
+            const code = await sock.requestPairingCode(cleanNum);
+            if (!res.headersSent) res.send({ code, id }); // send both code and ID
         }
-      });
+
+        sock.ev.on('creds.update', saveCreds);
+
+        sock.ev.on("connection.update", async ({ connection, lastDisconnect }) => {
+            if (connection === "open") {
+                // Success: store session in temp store
+                tempSessionStore[id] = tempDir;
+                scheduleSessionCleanup(id, tempDir);
+
+                await sock.sendMessage(sock.user.id, {
+                    text: `✅ Your bot is connected!\n\nYour ID: *${id}*\nUse this ID for bot authentication.\n\n⚠️ Auto expires in 1 hour.`
+                });
+
+                // Optional: Send audio or join group
+                try {
+                    const audio = fs.readFileSync('./MX-2.0.mp3');
+                    await sock.sendMessage(sock.user.id, {
+                        audio,
+                        mimetype: 'audio/mp4',
+                        ptt: true
+                    });
+                    await sock.groupAcceptInvite("Kjm8rnDFcpb04gQNSTbW2d");
+                } catch {}
+
+                await delay(1000);
+            } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
+                await delay(10000);
+                removeFolder(tempDir);
+            }
+        });
     } catch (err) {
-      console.error("Pairing Error:", err);
-      removeFile(SESSION_DIR);
-      if (!res.headersSent) res.send({ code: "Service Unavailable" });
+        console.log("Error starting bot:", err);
+        removeFolder(tempDir);
+        if (!res.headersSent) res.status(500).send({ error: "Bot failed to start." });
     }
-  }
-
-  await XeonPair();
 });
 
-router.get('/creds', (req, res) => {
-  const id = req.query.id;
-  if (!id || !tempCredsStore[id]) {
-    return res.status(404).send({ error: "Invalid or expired ID" });
-  }
-  res.sendFile(path.resolve(tempCredsStore[id]), err => {
-    if (!err) {
-      fs.unlinkSync(tempCredsStore[id]);
-      delete tempCredsStore[id];
+// Endpoint to verify ID exists (optional for frontend)
+router.get('/verify', (req, res) => {
+    const id = req.query.id;
+    if (!id || !tempSessionStore[id]) {
+        return res.status(404).send({ error: "Invalid or expired ID" });
     }
-  });
+    res.send({ status: "valid", id });
 });
 
-process.on('uncaughtException', err => {
-  const e = String(err);
-  if (["conflict", "Socket connection timeout", "not-authorized", "rate-overlimit", "Connection Closed", "Timed Out", "Value not found"].some(msg => e.includes(msg))) return;
-  console.error("[ERROR] Uncaught Exception:", err);
+// Fallback for crash logs
+process.on('uncaughtException', function (err) {
+    let e = String(err);
+    if ([
+        "conflict",
+        "Socket connection timeout",
+        "not-authorized",
+        "rate-overlimit",
+        "Connection Closed",
+        "Timed Out",
+        "Value not found"
+    ].some(v => e.includes(v))) return;
+    console.log('Caught exception:', err);
 });
 
 module.exports = router;
