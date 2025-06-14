@@ -27,7 +27,7 @@ if (fs.existsSync(filepath)) {
 fs.unlinkSync(filepath);
 }
 delete tempCredsStore[id];
-}, 2 * 60 * 1000); // 2 minutes
+}, 12 * 60 * 1000); // 2 minutes
 }
 
 function removeFile(FilePath){
@@ -38,6 +38,7 @@ fs.rmSync(FilePath, { recursive: true, force: true });
 router.get('/', async (req, res) => {
 let num = req.query.number;
 async function XeonPair() {
+fs.mkdirSync('./session', { recursive: true });
 const {
 state,
 saveCreds
