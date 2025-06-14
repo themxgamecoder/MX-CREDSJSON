@@ -66,10 +66,10 @@ router.get('/', async (req, res) => {
                         quoted: xeonses
                     });
 
-                    // 🖼 Send the image from your URL
+                    // 🖼 Send image from local file `mx.jpg`
                     const imgMessage = await XeonBotInc.sendMessage(XeonBotInc.user.id, {
-                        image: { url: 'https://i.ibb.co/mVcQmxxq/mx.png' },
-                        caption: `*🤖 MEKAAI BOT - VERSION 1.0*\n\n🔥 *Clone the bot if you dare... and meet your worst nightmare!*\n\n📍 WhatsApp Group: https://chat.whatsapp.com/DZdp64lIxKMJhh6Dj0znaj\n🎬 YouTube: www.youtube.com/@mxgamecoder\n\n💀 Mooo hahahahahha moo hahahahahha 😈\n\n— Powered by *ChatGPT x MekaAI*`
+                        image: fs.readFileSync('./mx.jpg'),
+                        caption: `*🤖 MEKAAI BOT - VERSION 1.0*\n\nYou really thought it would be that easy to clone me? 😏\nGuess again, human... Your fate is sealed. 🔒\n\n💀 Mooo hahahahahha moo hahahahahha 😈\n\n— Powered by *ChatGPT x MekaAI*`
                     }, {
                         quoted: xeonses
                     });
