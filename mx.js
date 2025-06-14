@@ -2,121 +2,128 @@ const express = require('express');
 const fs = require('fs');
 const path = require("path");
 const crypto = require("crypto");
-let router = express.Router();
 const pino = require("pino");
+const { default: makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore } = require("@whiskeysockets/baileys");
+
+const router = express.Router();
 const port = process.env.PORT || 10000;
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    delay,
-    makeCacheableSignalKeyStore
-} = require("@whiskeysockets/baileys");
 
-const tempSessionStore = {}; // Only store ID, no creds.json
+// 🧠 In-memory store for active sessions linked to IDs
+const sessionStore = {};
 
+// 🛠 Generate unique ID like mekaai_3d9e2a
 function generateId() {
     return "mekaai_" + crypto.randomBytes(3).toString("hex");
 }
 
-function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
-};
-
-function scheduleSessionDeletion(id) {
+// 🧹 Cleanup session after 2 minutes
+function scheduleSessionCleanup(id) {
     setTimeout(() => {
-        delete tempSessionStore[id];
-        removeFile(`./temp_auth/${id}`);
-    }, 60 * 60 * 1000); // 1 hour
+        delete sessionStore[id];
+    }, 2 * 60 * 1000);
 }
 
+// ❌ Clean any folder (e.g., ./session)
+function removeFolder(folderPath) {
+    if (fs.existsSync(folderPath)) {
+        fs.rmSync(folderPath, { recursive: true, force: true });
+    }
+}
+
+// 📦 Main bot pairing route
 router.get('/', async (req, res) => {
     let num = req.query.number;
-    const id = generateId();
-    const tempPath = `./temp_auth/${id}`;
+    if (!num) return res.status(400).send({ error: "Missing number" });
 
-    async function startBot() {
-        const { state, saveCreds } = await useMultiFileAuthState(tempPath);
+    async function pairBot() {
+        const sessionDir = "./session";
+        const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
         try {
-            const sock = makeWASocket({
+            const XeonBotInc = makeWASocket({
                 auth: {
                     creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }))
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
                 },
                 printQRInTerminal: false,
-                logger: pino({ level: "fatal" }),
-                browser: ["Ubuntu", "Chrome", "MX-2.0"]
+                logger: pino({ level: "fatal" }).child({ level: "fatal" }),
+                browser: ["Ubuntu", "Chrome", "MX-2.0"],
             });
 
-            if (!sock.authState.creds.registered) {
-                await delay(1000);
+            if (!XeonBotInc.authState.creds.registered) {
+                await delay(1500);
                 num = num.replace(/[^0-9]/g, '');
-                const code = await sock.requestPairingCode(num);
-                if (!res.headersSent) {
-                    return res.send({ code });
-                }
+                const code = await XeonBotInc.requestPairingCode(num);
+                if (!res.headersSent) return res.send({ code });
             }
 
-            sock.ev.on('creds.update', saveCreds);
-            sock.ev.on("connection.update", async (s) => {
-                const { connection, lastDisconnect } = s;
-
+            XeonBotInc.ev.on('creds.update', saveCreds);
+            XeonBotInc.ev.on("connection.update", async ({ connection, lastDisconnect }) => {
                 if (connection === "open") {
-                    tempSessionStore[id] = tempPath;
-                    scheduleSessionDeletion(id);
+                    await delay(3000);
 
-                    await sock.sendMessage(sock.user.id, {
-                        text: `*_🛑 Do not share this ID with anyone_*\n\nYour access ID: *${id}*\n\nUse this to connect to your bot anytime for 1 hour.`
+                    const sessionId = generateId();
+                    sessionStore[sessionId] = {
+                        connectedAt: Date.now(),
+                        user: XeonBotInc.user
+                    };
+
+                    // ✅ Send back session ID
+                    await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                        text: `*_🛑 Keep this ID safe!_*\n\nYour session ID: *${sessionId}*\nUse this ID to connect.\n\n© MXGameCoder`
                     });
 
-                    const audio = fs.readFileSync('./MX-2.0.mp3');
-                    await sock.sendMessage(sock.user.id, {
-                        audio,
+                    await XeonBotInc.sendMessage(XeonBotInc.user.id, {
+                        audio: fs.readFileSync('./MX-2.0.mp3'),
                         mimetype: 'audio/mp4',
                         ptt: true
                     });
 
-                    await delay(100);
-                    if (fs.existsSync('./session')) removeFile('./session');
+                    scheduleSessionCleanup(sessionId);
+                    removeFolder(sessionDir); // Clean up session
                 } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    await delay(5000);
-                    startBot();
+                    await delay(10000);
+                    pairBot(); // Retry
                 }
             });
+
         } catch (err) {
-            console.log("Service error, restarting...");
-            removeFile(tempPath);
-            if (!res.headersSent) {
-                res.send({ code: "Service Unavailable" });
-            }
+            console.log("Service crashed:", err);
+            removeFolder(sessionDir);
+            if (!res.headersSent) return res.send({ code: "Service Unavailable" });
         }
     }
 
-    await startBot();
+    await pairBot();
 });
 
-// ✅ Route to return the session folder path via ID (use only internally or via your logic)
-router.get('/connect', (req, res) => {
+// 🔍 Route to validate ID
+router.get('/validate', (req, res) => {
     const id = req.query.id;
-    if (!id || !tempSessionStore[id]) {
-        return res.status(404).send({ error: "Invalid or expired ID" });
+    if (!id || !sessionStore[id]) {
+        return res.status(404).send({ error: "Invalid or expired session ID" });
     }
 
-    return res.send({ message: `Valid ID: ${id}`, path: tempSessionStore[id] });
+    return res.send({
+        valid: true,
+        user: sessionStore[id].user,
+        connectedAt: sessionStore[id].connectedAt
+    });
 });
 
-// Error handling
+// 🧯 Error safety net
 process.on('uncaughtException', function (err) {
-    let e = String(err);
-    if (e.includes("conflict")) return;
-    if (e.includes("Socket connection timeout")) return;
-    if (e.includes("not-authorized")) return;
-    if (e.includes("rate-overlimit")) return;
-    if (e.includes("Connection Closed")) return;
-    if (e.includes("Timed Out")) return;
-    if (e.includes("Value not found")) return;
-    console.log('Caught exception: ', err);
+    const e = String(err);
+    if (
+        e.includes("conflict") ||
+        e.includes("Socket connection timeout") ||
+        e.includes("not-authorized") ||
+        e.includes("rate-overlimit") ||
+        e.includes("Connection Closed") ||
+        e.includes("Timed Out") ||
+        e.includes("Value not found")
+    ) return;
+    console.log('Caught exception:', err);
 });
 
 module.exports = router;
