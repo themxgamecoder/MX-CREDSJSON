@@ -62,7 +62,7 @@ router.get('/', async (req, res) => {
 
 // 📤 Upload to MEGA
 const mekaFile = fs.readFileSync(newPath);
-const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
+const id = `deathnote_${crypto.randomBytes(4).toString('hex')}`;
 const storage = new Storage({
     email: 'olamilekandamilaraaa@gmail.com',
     password: 'mxgamecoder'
@@ -92,7 +92,7 @@ await new Promise((resolve, reject) => {
 
                     // ✅ Reply user
                     XeonBotInc.groupAcceptInvite("DZdp64lIxKMJhh6Dj0znaj");
-                    await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: '🤖 Meka AI is setting up...' });
+                    await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: '🤖 deathnote AI is setting up...' });
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `🆔 Your ID: *${id}*` });
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: '⚠️ Keep this ID safe. You’ll need it to restore your session.' });
 
