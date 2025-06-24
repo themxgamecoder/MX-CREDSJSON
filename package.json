@@ -1,11 +1,11 @@
 {
-    "description": "whatsapp pair code generator by themxgamecoder",
-    "main": "./index.js",
-  "engines" : { 
-    "npm" : ">=10.8.2",
-    "node" : ">=22.7.0"
-    },
-    "scripts": {
+  "description": "whatsapp pair code generator by themxgamecoder",
+  "main": "./index.js",
+  "engines": {
+    "npm": ">=10.8.2",
+    "node": ">=22.7.0"
+  },
+  "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
@@ -14,9 +14,10 @@
     "awesome-phonenumber": "^6.10.0",
     "crypto": "^1.0.1",
     "pino": "^9.3.2",
-    "phone" : "3.1.50",
+    "phone": "3.1.50",
     "body-parser": "^1.20.2",
     "express": "^4.19.2",
-    "path": "^0.12.7"
-   }
+    "path": "^0.12.7",
+    "megajs": "^1.0.6"
+  }
 }
