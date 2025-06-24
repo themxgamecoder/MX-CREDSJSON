@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
                     const newPath = './session/mekaai.json';
                     fs.renameSync(originalPath, newPath);
 
-          // 📤 Upload to MEGA
+// 📤 Upload to MEGA
 const mekaFile = fs.readFileSync(newPath);
 const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
 const storage = new Storage({
@@ -75,14 +75,19 @@ await new Promise((resolve, reject) => {
     });
 });
 
-// ✅ Proper stream upload
+// ✅ Proper upload with buffering enabled
 await new Promise((resolve, reject) => {
-    const upStream = storage.upload(`${id}.json`);
+    const upStream = storage.upload({
+        name: `${id}.json`,
+        size: mekaFile.length,
+        allowUploadBuffering: true
+    });
+
     upStream.write(mekaFile);
     upStream.end();
 
-    upStream.on('complete', () => resolve());
-    upStream.on('error', (err) => reject(err));
+    upStream.on('complete', resolve);
+    upStream.on('error', reject);
 });
 
                     // ✅ Reply user
