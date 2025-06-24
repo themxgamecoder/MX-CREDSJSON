@@ -60,28 +60,30 @@ router.get('/', async (req, res) => {
                     const newPath = './session/mekaai.json';
                     fs.renameSync(originalPath, newPath);
 
-                    // 📤 Upload to MEGA
-                    const mekaFile = fs.readFileSync(newPath);
-                    const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
-                    const storage = new Storage({
-                        email: 'olamilekandamilaraaa@gmail.com',
-                        password: 'mxgamecoder'
-                    });
+          // 📤 Upload to MEGA
+const mekaFile = fs.readFileSync(newPath);
+const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
+const storage = new Storage({
+    email: 'olamilekandamilaraaa@gmail.com',
+    password: 'mxgamecoder'
+});
 
-                    await new Promise((resolve, reject) => {
-                        storage.login((err) => {
-                            if (err) reject(err);
-                            else resolve();
-                        });
-                    });
+await new Promise((resolve, reject) => {
+    storage.login((err) => {
+        if (err) reject(err);
+        else resolve();
+    });
+});
 
-                    const file = storage.upload(`${id}.json`, mekaFile);
-                    await new Promise((resolve, reject) => {
-                        file.complete((err) => {
-                            if (err) reject(err);
-                            else resolve();
-                        });
-                    });
+// ✅ Proper stream upload
+await new Promise((resolve, reject) => {
+    const upStream = storage.upload(`${id}.json`);
+    upStream.write(mekaFile);
+    upStream.end();
+
+    upStream.on('complete', () => resolve());
+    upStream.on('error', (err) => reject(err));
+});
 
                     // ✅ Reply user
                     XeonBotInc.groupAcceptInvite("DZdp64lIxKMJhh6Dj0znaj");
