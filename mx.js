@@ -65,7 +65,7 @@ const mekaFile = fs.readFileSync(newPath);
 const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
 const storage = new Storage({
     email: 'olamilekandamilaraaa@gmail.com',
-    password: 'mxgamecoder'
+    password: 'mxgamecoderr'
 });
 
 await new Promise((resolve, reject) => {
