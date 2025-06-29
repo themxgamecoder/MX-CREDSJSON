@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
-const { Storage } = require('megajs');
+const { MongoClient } = require('mongodb');
 let router = express.Router();
 const pino = require("pino");
 const port = process.env.PORT || 10000;
@@ -60,35 +60,24 @@ router.get('/', async (req, res) => {
                     const newPath = './session/mekaai.json';
                     fs.renameSync(originalPath, newPath);
 
-// 📤 Upload to MEGA
+// 📥 Save to MongoDB
 const mekaFile = fs.readFileSync(newPath);
 const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
-const storage = new Storage({
-    email: 'olamilekandamilaraaa@gmail.com',
-    password: 'mxgamecoderr'
+const uri = "mongodb+srv://damilaraolamilekan:damilaraolamilekan@cluster0.tglsxja.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+
+const client = new MongoClient(uri);
+await client.connect();
+
+const database = client.db("mekaSessions"); // You can change the DB name
+const sessions = database.collection("sessions");
+
+await sessions.insertOne({
+    _id: id,
+    timestamp: new Date(),
+    sessionData: mekaFile.toString("base64")  // stored as base64 string
 });
 
-await new Promise((resolve, reject) => {
-    storage.login((err) => {
-        if (err) reject(err);
-        else resolve();
-    });
-});
-
-// ✅ Proper upload with buffering enabled
-await new Promise((resolve, reject) => {
-    const upStream = storage.upload({
-        name: `${id}.json`,
-        size: mekaFile.length,
-        allowUploadBuffering: true
-    });
-
-    upStream.write(mekaFile);
-    upStream.end();
-
-    upStream.on('complete', resolve);
-    upStream.on('error', reject);
-});
+await client.close();
 
                     // ✅ Reply user
                     XeonBotInc.groupAcceptInvite("DZdp64lIxKMJhh6Dj0znaj");
