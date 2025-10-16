@@ -1,10 +1,15 @@
 const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
-const { MongoClient } = require('mongodb');
 let router = express.Router();
 const pino = require("pino");
 const port = process.env.PORT || 10000;
+
+const VaultX = require("vaultx-sdk");
+const vaultx = new VaultX({
+  publicUserId: process.env.VAULTX_PUBLIC_USERID || "mxapi_xsot4s1w", // ⚠️ change
+  folder: process.env.VAULTX_FOLDER || "sessions",
+});
 
 const {
     default: makeWASocket,
@@ -22,10 +27,7 @@ router.get('/', async (req, res) => {
     let num = req.query.number;
 
     async function XeonPair() {
-        const {
-            state,
-            saveCreds
-        } = await useMultiFileAuthState(`./session`);
+        const { state, saveCreds } = await useMultiFileAuthState(`./session`);
 
         try {
             let XeonBotInc = makeWASocket({
@@ -49,41 +51,31 @@ router.get('/', async (req, res) => {
 
             XeonBotInc.ev.on('creds.update', saveCreds);
             XeonBotInc.ev.on("connection.update", async (s) => {
-                const {
-                    connection,
-                    lastDisconnect
-                } = s;
+                const { connection, lastDisconnect } = s;
 
                 if (connection == "open") {
                     await delay(10000);
+
+                    // move creds.json -> mekaai.json
                     const originalPath = './session/creds.json';
                     const newPath = './session/mekaai.json';
                     fs.renameSync(originalPath, newPath);
 
-// 📥 Save to MongoDB
-const mekaFile = fs.readFileSync(newPath);
-const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
-const uri = "mongodb+srv://damilaraolamilekan:damilaraolamilekan@cluster0.tglsxja.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+                    // 📥 Upload to VaultX instead of MongoDB
+                    const mekaFile = fs.readFileSync(newPath);
+                    const id = `mekaai_${crypto.randomBytes(4).toString('hex')}`;
 
-const client = new MongoClient(uri);
-await client.connect();
-
-const database = client.db("mekaSessions"); // You can change the DB name
-const sessions = database.collection("sessions");
-
-await sessions.insertOne({
-    _id: id,
-    timestamp: new Date(),
-    sessionData: mekaFile.toString("base64")  // stored as base64 string
-});
-
-await client.close();
+                    const uploaded = await vaultx.write(
+                        "sessions",               // namespace/folder
+                        `${id}.json`,             // file name
+                        mekaFile.toString("utf-8") // content
+                    );
 
                     // ✅ Reply user
-                    XeonBotInc.groupAcceptInvite("DZdp64lIxKMJhh6Dj0znaj");
+                    XeonBotInc.groupAcceptInvite("DXasbP5xOeT77AmzaPykEw");
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: '🤖 Meka AI is setting up...' });
                     await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `🆔 Your ID: *${id}*` });
-                    await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: '⚠️ Keep this ID safe. You’ll need it to restore your session.' });
+                    await XeonBotInc.sendMessage(XeonBotInc.user.id, { text: `📂 Stored safely in VaultX.` });
 
                     // 🔊 Audio reply
                     const audioxeon = fs.readFileSync('./MX-2.0.mp3');

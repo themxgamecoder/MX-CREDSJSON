@@ -10,14 +10,15 @@
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.17",
-    "qrcode": "^1.5.4",
     "awesome-phonenumber": "^6.10.0",
-    "crypto": "^1.0.1",
-    "pino": "^9.3.2",
-    "phone": "3.1.50",
     "body-parser": "^1.20.2",
+    "crypto": "^1.0.1",
     "express": "^4.19.2",
+    "mongodb": "^6.7.0",
     "path": "^0.12.7",
-    "mongodb": "^6.7.0"
+    "phone": "3.1.50",
+    "pino": "^9.3.2",
+    "qrcode": "^1.5.4",
+    "vaultx-sdk": "^1.0.4"
   }
 }
